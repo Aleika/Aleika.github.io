@@ -598,16 +598,10 @@ $ <em>./trocaregioes</em><br></p>
 <p>O terceiro exercício baseia-se no uso de contagem de objetos em uma cena. Para isso, utilizamos uma imagem fornecida pelo professor, a qual podemos contar 'bolhas'. Existem na imagem dois tipos de bolhas, aquelas que tem buracos e aquelas que são totalmente preenchidas.</p>
 </div>
 <div class="paragraph">
-<p>Para proceder com a operação, utilizamos da função floodFill() que percorre uma determinada região a partir de um pixel inicial, chamado semente e aquela região de pixels vizinhos recebe a cor determinada no parâmetro da função.</p>
+<p>Para proceder com a operação, utilizamos da função floodFill() que percorre uma determinada região a partir de um pixel inicial, chamado semente e aquela região de pixels vizinhos recebe a cor determinada no parâmetro da função. Como na imagem as cores eram de valor de pixel 0 ou 255 foi um facilitador para a resolução do problema da contagem de bolhas.</p>
 </div>
 <div class="paragraph">
-<p>Como na imagem as cores eram de valor de pixel 0 ou 255 foi um facilitador para a resolução do problema da contagem de bolhas.</p>
-</div>
-<div class="paragraph">
-<p>A primeira providência a ser tomada foi excluir as bolhas que estão nas bordas, devido à incerteza de elas serem bolhas preenchidas ou não.</p>
-</div>
-<div class="paragraph">
-<p>Em seguida, aplica-se então a função floodFill() no fundo da imagem para diferenciar as regiões de bolha e buraco da região de fundo.</p>
+<p>A primeira providência a ser tomada foi excluir as bolhas que estão nas bordas, devido à incerteza de elas serem bolhas preenchidas ou não. Em seguida, aplica-se então a função floodFill() no fundo da imagem para diferenciar as regiões de bolha e buraco da região de fundo.</p>
 </div>
 <div class="paragraph">
 <p>Feito isto, podemos começar a contar as bolhas que existem com buracos e as que não possuem buraco.</p>
@@ -861,7 +855,85 @@ $ <em>./equalize</em><br></p>
 <div class="listingblock">
 <div class="title">Código 5 - motiondetector.cpp</div>
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-cpp" data-lang="cpp"></code></pre>
+<pre class="highlightjs highlight"><code class="language-cpp" data-lang="cpp">#include &lt;iostream&gt;
+#include &lt;opencv2/opencv.hpp&gt;
+
+using namespace cv;
+using namespace std;
+
+int main(int argc, char** argv){
+
+  Mat image, image2;
+  vector&lt;Mat&gt; planes;
+  Mat histR, histR2;
+  VideoCapture cap;
+  float diferenca;
+  int nbins = 64;
+  float range[] = {0, 256};
+  const float *histrange = { range };
+
+  bool uniform = true;
+  bool acummulate = false;
+
+  cap.open(0);
+
+  if(!cap.isOpened()){
+    cout &lt;&lt; "cameras indisponiveis";
+    return -1;
+  }
+
+  int histw = nbins, histh = nbins/2;
+  Mat histImgR(histh, histw, CV_8UC3, Scalar(0,0,0));
+  Mat histImgR2(histh, histw, CV_8UC3, Scalar(0,0,0));
+  bool primeira_imagem = true;
+
+  while(true){
+
+    cap &gt;&gt; image;
+    split(image, planes);
+
+    if(!primeira_imagem){
+      histR.copyTo(histR2);
+      histImgR.copyTo(histImgR2);
+    }
+
+    calcHist(&amp;planes[0], 1, 0, Mat(), histR, 1,
+             &amp;nbins, &amp;histrange,
+             uniform, acummulate);
+    normalize(histR, histR, 0, histImgR.rows, NORM_MINMAX, -1, Mat());
+
+    histImgR.setTo(Scalar(0));
+
+
+    for(int i=0; i&lt;nbins; i++){
+      line(histImgR,
+           Point(i, histh),
+           Point(i, histh-cvRound(histR.at&lt;float&gt;(i))),
+           Scalar(0, 0, 255), 1, 8, 0);
+    }
+
+    histImgR.copyTo(image(Rect(0, 0,nbins, histh)));
+
+    if(!primeira_imagem){
+      histImgR2.copyTo(image(Rect(0,histh,nbins,histh)));
+      image2 = image;
+    }
+
+    if(!primeira_imagem){
+      diferenca = compareHist(histR,histR2, CV_COMP_CORREL);
+      if(diferenca&gt;0.8)  {
+       imwrite("detectado movimento", image);
+      }
+    }
+
+
+    primeira_imagem = false;
+    imshow("Imagem", image);
+    imshow("Imagem Anterior", image2);
+    if(waitKey(30) &gt;= 0) break;
+  }
+  return 0;
+}</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -893,7 +965,148 @@ $ <em>./motiondetector</em><br></p>
 <div class="listingblock">
 <div class="title">Código 6 - laplgauss.cpp</div>
 <div class="content">
-<pre class="highlightjs highlight"><code></code></pre>
+<pre class="highlightjs highlight"><code class="language-cpp" data-lang="cpp">#include &lt;iostream&gt;
+#include &lt;opencv2/opencv.hpp&gt;
+
+using namespace cv;
+using namespace std;
+
+void printmask(Mat &amp;m){
+  for(int i=0; i&lt;m.size().height; i++){
+    for(int j=0; j&lt;m.size().width; j++){
+      cout &lt;&lt; m.at&lt;float&gt;(i,j) &lt;&lt; ",";
+    }
+    cout &lt;&lt; endl;
+  }
+}
+
+void printmaskLG(Mat &amp;g, Mat &amp;l){
+  for(int i=0; i&lt;g.size().height; i++){
+    for(int j=0; j&lt;g.size().width; j++){
+      cout &lt;&lt; g.at&lt;float&gt;(i,j) + l.at&lt;float&gt;(i,j)&lt;&lt; ",";
+    }
+    cout &lt;&lt; endl;
+  }
+}
+
+void menu(){
+  cout &lt;&lt; "\npressione a tecla para ativar o filtro: \n"
+	"a - calcular modulo\n"
+    "m - media\n"
+    "g - gauss\n"
+    "v - vertical\n"
+	"h - horizontal\n"
+    "l - laplaciano\n"
+    "s - Laplaciano do Gaussiano\n"
+	"esc - sair\n";
+}
+
+int main(int argvc, char** argv){
+  VideoCapture video;
+  float media[] = {1,1,1,
+				   1,1,1,
+				   1,1,1};
+  float gauss[] = {1,2,1,
+				   2,4,2,
+				   1,2,1};
+  float horizontal[]={-1,0,1,
+					  -2,0,2,
+					  -1,0,1};
+  float vertical[]={-1,-2,-1,
+					0,0,0,
+					1,2,1};
+  float laplacian[]={0,-1,0,
+					 -1,4,-1,
+					 0,-1,0};
+
+  Mat cap, frame, frame32f, frameFiltered;
+  Mat mask(3,3,CV_32F), mask1;
+  Mat result, result1;
+  double width, height;
+  int absolut;
+  char key;
+
+  video.open(0);
+  if(!video.isOpened())
+    return -1;
+  width=video.get(CV_CAP_PROP_FRAME_WIDTH);
+  height=video.get(CV_CAP_PROP_FRAME_HEIGHT);
+  std::cout &lt;&lt; "largura=" &lt;&lt; width &lt;&lt; "\n";;
+  std::cout &lt;&lt; "altura =" &lt;&lt; height&lt;&lt; "\n";;
+
+  namedWindow("filtroespacial",1);
+
+  mask = Mat(3, 3, CV_32F, media);
+  scaleAdd(mask, 1/9.0, Mat::zeros(3,3,CV_32F), mask1);
+  swap(mask, mask1);
+  absolut=1; // calcs abs of the image
+
+  menu();
+  for(;;){
+    video &gt;&gt; cap;
+    cvtColor(cap, frame, CV_BGR2GRAY);
+    flip(frame, frame, 1);
+    imshow("original", frame);
+    imwrite("original.jpg", frame);
+    frame.convertTo(frame32f, CV_32F);
+    filter2D(frame32f, frameFiltered,
+			 frame32f.depth(), mask, Point(1,1), 0);
+    if(absolut){
+      frameFiltered=abs(frameFiltered);
+    }
+    frameFiltered.convertTo(result, CV_8U);
+    imshow("filtroespacial", result);
+    imwrite("resultado_filtro.jpg", result);
+    key = (char) waitKey(10);
+    if( key == 27 ) break; // esc pressed!
+    switch(key){
+    case 'a':
+	  menu();
+      absolut=!absolut;
+      break;
+    case 'm':
+	  menu();
+      mask = Mat(3, 3, CV_32F, media);
+      scaleAdd(mask, 1/9.0, Mat::zeros(3,3,CV_32F), mask1);
+      mask = mask1;
+      printmask(mask);
+      break;
+    case 'g':
+	  menu();
+      mask = Mat(3, 3, CV_32F, gauss);
+      scaleAdd(mask, 1/16.0, Mat::zeros(3,3,CV_32F), mask1);
+      mask = mask1;
+      printmask(mask);
+      break;
+    case 'h':
+	  menu();
+      mask = Mat(3, 3, CV_32F, horizontal);
+      printmask(mask);
+      break;
+    case 'v':
+	  menu();
+      mask = Mat(3, 3, CV_32F, vertical);
+      printmask(mask);
+      break;
+    case 'l':
+	  menu();
+      mask = Mat(3, 3, CV_32F, laplacian);
+      printmask(mask);
+      break;
+    case 's':
+	  menu();
+      mask = Mat(3, 3, CV_32F, gauss);
+      scaleAdd(mask, 1/16.0, Mat::zeros(3,3,CV_32F), mask1);
+      mask = mask1;
+      mask = Mat(3, 3, CV_32F, laplacian);
+      printmaskLG(mask1, mask);
+      break;
+    default:
+      break;
+    }
+  }
+  return 0;
+}</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -906,7 +1119,18 @@ $ <em>./laplgauss</em><br></p>
 </div>
 <div class="sect3">
 <h4 id="trueresultado-6"><a class="anchor" href="#trueresultado-6"></a>Resultado</h4>
-
+<div class="imageblock">
+<div class="content">
+<img src="original.jpg" alt="original.jpg">
+</div>
+<div class="title">Figure 5. Imagem Original.</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="resultado_filtro.jpg" alt="resultado filtro.jpg">
+</div>
+<div class="title">Figure 6. Imagem com filtro laplaciano do gaussiano.</div>
+</div>
 </div>
 </div>
 <div class="sect2">
@@ -1030,7 +1254,7 @@ $ <em>./tiltshift</em><br></p>
 <div class="content">
 <img src="tiltshift.png" alt="tiltshift.png">
 </div>
-<div class="title">Figure 5. Imagem utilizando técnica tilt-shift.</div>
+<div class="title">Figure 7. Imagem utilizando técnica tilt-shift.</div>
 </div>
 </div>
 <div class="sect3">
@@ -1043,7 +1267,7 @@ $ <em>./tiltshift</em><br></p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2019-03-26 21:11:48
+Last updated 2019-03-27 10:29:30
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">
