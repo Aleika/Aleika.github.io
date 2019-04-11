@@ -883,22 +883,28 @@ int main(int argc, char** argv){
   Mat image, image2;
   vector&lt;Mat&gt; planes;
   Mat histR, histR2;
-  VideoCapture cap;
+  int width, height;
+  VideoCapture cap("https://media.giphy.com/media/11JTxkrmq4bGE0/giphy.mp4");
   float diferenca;
   int nbins = 64;
   float range[] = {0, 256};
   const float *histrange = { range };
+  int key;
 
   bool uniform = true;
   bool acummulate = false;
 
-  cap.open(0);
+  cap.open("video.mp4");
 
   if(!cap.isOpened()){
     cout &lt;&lt; "cameras indisponiveis";
     return -1;
   }
 
+  width=cap.get(CV_CAP_PROP_FRAME_WIDTH);
+  height=cap.get(CV_CAP_PROP_FRAME_HEIGHT);
+  Size frameSize(static_cast&lt;int&gt;(width), static_cast&lt;int&gt;(height));
+  VideoWriter out ("saida.avi", CV_FOURCC('P','I','M','1'), 10,   frameSize, true);
   int histw = nbins, histh = nbins/2;
   Mat histImgR(histh, histw, CV_8UC3, Scalar(0,0,0));
   Mat histImgR2(histh, histw, CV_8UC3, Scalar(0,0,0));
@@ -939,15 +945,18 @@ int main(int argc, char** argv){
     if(!primeira_imagem){
       diferenca = compareHist(histR,histR2, CV_COMP_CORREL);
       if(diferenca&gt;0.8)  {
-       imwrite("detectado movimento", image);
+       putText(image, "Movimento detectado",  Point(5,100),
+              FONT_HERSHEY_SIMPLEX, .7,
+                Scalar(0,0,255,255), 2);
       }
     }
 
 
     primeira_imagem = false;
     imshow("Imagem", image);
-    imshow("Imagem Anterior", image2);
-    if(waitKey(30) &gt;= 0) break;
+    //imshow("Imagem Anterior", image2);
+    key = waitKey(30);
+
   }
   return 0;
 }</code></pre>
@@ -963,7 +972,22 @@ $ <em>./motiondetector</em><br></p>
 </div>
 <div class="sect3">
 <h4 id="trueresultado-5"><a class="anchor" href="#trueresultado-5"></a>Resultado</h4>
-
+<div class="videoblock">
+<div class="title">Video Original</div>
+<div class="content">
+<video src="video.mp4" controls>
+Your browser does not support the video tag.
+</video>
+</div>
+</div>
+<div class="videoblock">
+<div class="title">Detectando Movimento</div>
+<div class="content">
+<video src="saida.avi" controls>
+Your browser does not support the video tag.
+</video>
+</div>
+</div>
 </div>
 </div>
 <div class="sect2">
@@ -1284,7 +1308,7 @@ $ <em>./tiltshift</em><br></p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2019-04-03 16:55:00
+Last updated 2019-04-10 23:35:52
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">
