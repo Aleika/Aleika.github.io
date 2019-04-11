@@ -883,8 +883,8 @@ int main(int argc, char** argv){
   Mat image, image2;
   vector&lt;Mat&gt; planes;
   Mat histR, histR2;
-  int width, height;
-  VideoCapture cap;
+int width, height;
+  VideoCapture cap("https://media.giphy.com/media/11JTxkrmq4bGE0/giphy.mp4");
   float diferenca;
   int nbins = 64;
   float range[] = {0, 256};
@@ -901,10 +901,15 @@ int main(int argc, char** argv){
     return -1;
   }
 
-  width=cap.get(CV_CAP_PROP_FRAME_WIDTH);
+width=cap.get(CV_CAP_PROP_FRAME_WIDTH);
   height=cap.get(CV_CAP_PROP_FRAME_HEIGHT);
+  std::cout &lt;&lt; "largura=" &lt;&lt; width &lt;&lt; "\n";;
+  std::cout &lt;&lt; "altura =" &lt;&lt; height&lt;&lt; "\n";;
+
   Size frameSize(static_cast&lt;int&gt;(width), static_cast&lt;int&gt;(height));
-  VideoWriter out ("saida.avi", CV_FOURCC('P','I','M','1'), 10,   frameSize, true);
+  VideoWriter out ("Fast.mp4", CV_FOURCC('P','I','M','1'), 10, frameSize, true);
+
+
   int histw = nbins, histh = nbins/2;
   Mat histImgR(histh, histw, CV_8UC3, Scalar(0,0,0));
   Mat histImgR2(histh, histw, CV_8UC3, Scalar(0,0,0));
@@ -945,7 +950,7 @@ int main(int argc, char** argv){
     if(!primeira_imagem){
       diferenca = compareHist(histR,histR2, CV_COMP_CORREL);
       if(diferenca&gt;0.8)  {
-       putText(image, "Movimento detectado",  Point(5,100),
+       putText(image, "Movimento detectado!", Point(1,100),
               FONT_HERSHEY_SIMPLEX, .7,
                 Scalar(0,0,255,255), 2);
       }
@@ -956,7 +961,7 @@ int main(int argc, char** argv){
     imshow("Imagem", image);
     //imshow("Imagem Anterior", image2);
     key = waitKey(30);
-
+    //if(waitKey(30) &gt;= 0) break;
   }
   return 0;
 }</code></pre>
@@ -1300,6 +1305,10 @@ $ <em>./tiltshift</em><br></p>
 </div>
 <div class="sect3">
 <h4 id="true5-2-tiltshift-em-strong-v-deo-strong"><a class="anchor" href="#true5-2-tiltshift-em-strong-v-deo-strong"></a>5.2. Tiltshift em <strong>vídeo</strong></h4>
+<div class="paragraph">
+<p>Aplicando o efeito do tilt-shift em um vídeo o resultado se como um efeito de miniaturização da cena. Para uma melhor percepção, alguns frames são descartados para gerar um vídeo em stop motion.
+O resultado pode ser visto no vídeo com título 'Video com tiltshift'.</p>
+</div>
 <div class="listingblock">
 <div class="title">Código - tiltshift.cpp</div>
 <div class="content">
@@ -1322,7 +1331,7 @@ int main(int argvc, char** argv) {
   	width=video.get(CV_CAP_PROP_FRAME_WIDTH);
   	height=video.get(CV_CAP_PROP_FRAME_HEIGHT);
   	Size frameSize(static_cast&lt;int&gt;(width), static_cast&lt;int&gt;(height));
-  	VideoWriter out ("saidaVideo.avi", CV_FOURCC('P','I','M','1'), 10,   frameSize, true);
+  	VideoWriter out ("saidaVideo.avi", CV_FOURCC('P','I','M','1'), 5, frameSize, true);
 
 	Mat img_in, img_discard;
 	int cols = video.get(CV_CAP_PROP_FRAME_WIDTH);
@@ -1336,13 +1345,13 @@ int main(int argvc, char** argv) {
 	Mat mask_focus = Mat(rows, cols, CV_32FC3, Scalar(0, 0, 0));
 	Mat mask_unfocus = Mat(rows, cols, CV_32FC3, Scalar(1, 1, 1));
 
-	int frame_skip = 8; //Sets how many frames to skip between frames
+	int frame_skip = 2;
 	int pass_frame = 0;
 
-	float unfocus_aux = 0.35; //Edit this to change how much of the original image will stay focused
+	float unfocus_aux = 0.35;
 	int pos_i = unfocus_aux*rows;
 	int pos_f = rows - unfocus_aux*rows;
-	int decay = 70; //Edit this to change how fast it'll decay
+	int decay = 70;
 
 	Vec3f mask_function_value;
 
@@ -1356,9 +1365,6 @@ int main(int argvc, char** argv) {
 	}
 	mask_unfocus = mask_unfocus - mask_focus;
 
-	//This section shows the masks
-	//imshow("focus mask", mask_focus);
-	//imshow("unfocus mask", mask_unfocus);
 
 	while (true) {
 		if (pass_frame == 0) {
@@ -1373,20 +1379,15 @@ int main(int argvc, char** argv) {
 		img_focused = img_in.mul(mask_focus);
 		img_unfocused = img_blurred.mul(mask_unfocus);
 
-		//This section only shows the blurred image
 		img_blurred.convertTo(img_blurred, CV_8UC3);
-		//imshow("img_blurred", img_blurred);
-		//waitKey();
 
 		img_out = img_focused + img_unfocused;
 		img_out.convertTo(img_out, CV_8UC3);
 
-		//This section only shows the components of the final image
 		img_focused.convertTo(img_focused, CV_8UC3);
 		img_unfocused.convertTo(img_unfocused, CV_8UC3);
 		imshow("img_focused", img_focused);
 		imshow("img_unfocused", img_unfocused);
-		//waitKey();
 
 		if (pass_frame == 0) {
 			pass_frame = frame_skip;
@@ -1395,9 +1396,8 @@ int main(int argvc, char** argv) {
 			pass_frame -= 1;
 		}
 
-		imshow("output", img_out);
+		imshow("Efeito tiltshift", img_out);
 		key = waitKey(30);
-		//if (waitKey(30) &gt;= 0) break;
 	}
 	return 0;
 }</code></pre>
@@ -1416,7 +1416,7 @@ $ <em>./tiltshiftvideo</em><br></p>
 <div class="videoblock">
 <div class="title">Video com tiltshift .</div>
 <div class="content">
-<video src="tiltshift.png" controls>
+<video src="tiltshift.mp4" controls>
 Your browser does not support the video tag.
 </video>
 </div>
@@ -1428,7 +1428,7 @@ Your browser does not support the video tag.
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2019-04-11 00:30:07
+Last updated 2019-04-11 11:43:48
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">
