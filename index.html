@@ -884,7 +884,7 @@ int main(int argc, char** argv){
   vector&lt;Mat&gt; planes;
   Mat histR, histR2;
   int width, height;
-  VideoCapture cap("https://media.giphy.com/media/11JTxkrmq4bGE0/giphy.mp4");
+  VideoCapture cap;
   float diferenca;
   int nbins = 64;
   float range[] = {0, 256};
@@ -1300,7 +1300,127 @@ $ <em>./tiltshift</em><br></p>
 </div>
 <div class="sect3">
 <h4 id="true5-2-tiltshift-em-strong-v-deo-strong"><a class="anchor" href="#true5-2-tiltshift-em-strong-v-deo-strong"></a>5.2. Tiltshift em <strong>vídeo</strong></h4>
+<div class="listingblock">
+<div class="title">Código - tiltshift.cpp</div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-cpp" data-lang="cpp">#include &lt;iostream&gt;
+#include &lt;opencv2/opencv.hpp&gt;
+#include &lt;math.h&gt;
+using namespace cv;
+using namespace std;
 
+int main(int argvc, char** argv) {
+	VideoCapture video;
+	video.open("video.mp4");
+	int width, height;
+
+	if(!video.isOpened()){
+	    cout &lt;&lt; "cameras indisponiveis";
+	    return -1;
+	  }
+
+  	width=video.get(CV_CAP_PROP_FRAME_WIDTH);
+  	height=video.get(CV_CAP_PROP_FRAME_HEIGHT);
+  	Size frameSize(static_cast&lt;int&gt;(width), static_cast&lt;int&gt;(height));
+  	VideoWriter out ("saidaVideo.avi", CV_FOURCC('P','I','M','1'), 10,   frameSize, true);
+
+	Mat img_in, img_discard;
+	int cols = video.get(CV_CAP_PROP_FRAME_WIDTH);
+	int rows = video.get(CV_CAP_PROP_FRAME_HEIGHT);
+        int key;
+
+	Mat img_blurred = Mat::zeros(rows, cols, CV_32FC3);
+	Mat img_out = Mat::zeros(rows, cols, CV_32FC3);
+	Mat img_focused = Mat::zeros(rows, cols, CV_32FC3);
+	Mat img_unfocused = Mat::zeros(rows, cols, CV_32FC3);
+	Mat mask_focus = Mat(rows, cols, CV_32FC3, Scalar(0, 0, 0));
+	Mat mask_unfocus = Mat(rows, cols, CV_32FC3, Scalar(1, 1, 1));
+
+	int frame_skip = 8; //Sets how many frames to skip between frames
+	int pass_frame = 0;
+
+	float unfocus_aux = 0.35; //Edit this to change how much of the original image will stay focused
+	int pos_i = unfocus_aux*rows;
+	int pos_f = rows - unfocus_aux*rows;
+	int decay = 70; //Edit this to change how fast it'll decay
+
+	Vec3f mask_function_value;
+
+	for (int i = 0; i &lt; rows; i++) {
+		for (int j = 0; j &lt; cols; j++) {
+			mask_function_value[0] = (tanh((float(i - pos_i) / decay)) - tanh((float(i - pos_f) / decay))) / 2;
+			mask_function_value[1] = (tanh((float(i - pos_i) / decay)) - tanh((float(i - pos_f) / decay))) / 2;
+			mask_function_value[2] = (tanh((float(i - pos_i) / decay)) - tanh((float(i - pos_f) / decay))) / 2;
+			mask_focus.at&lt;Vec3f&gt;(i, j) = mask_function_value;
+		}
+	}
+	mask_unfocus = mask_unfocus - mask_focus;
+
+	//This section shows the masks
+	//imshow("focus mask", mask_focus);
+	//imshow("unfocus mask", mask_unfocus);
+
+	while (true) {
+		if (pass_frame == 0) {
+			video &gt;&gt; img_in;
+		} else {
+			video &gt;&gt; img_discard;
+		}
+
+		img_in.convertTo(img_in, CV_32FC3);
+		GaussianBlur(img_in, img_blurred, Size(7, 7), 0, 0);
+
+		img_focused = img_in.mul(mask_focus);
+		img_unfocused = img_blurred.mul(mask_unfocus);
+
+		//This section only shows the blurred image
+		img_blurred.convertTo(img_blurred, CV_8UC3);
+		//imshow("img_blurred", img_blurred);
+		//waitKey();
+
+		img_out = img_focused + img_unfocused;
+		img_out.convertTo(img_out, CV_8UC3);
+
+		//This section only shows the components of the final image
+		img_focused.convertTo(img_focused, CV_8UC3);
+		img_unfocused.convertTo(img_unfocused, CV_8UC3);
+		imshow("img_focused", img_focused);
+		imshow("img_unfocused", img_unfocused);
+		//waitKey();
+
+		if (pass_frame == 0) {
+			pass_frame = frame_skip;
+		}
+		else {
+			pass_frame -= 1;
+		}
+
+		imshow("output", img_out);
+		key = waitKey(30);
+		//if (waitKey(30) &gt;= 0) break;
+	}
+	return 0;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Para compilar e executar o código basta utilizar os comandos:</p>
+</div>
+<div class="paragraph">
+<p>$ <em>make tiltshiftvideo</em><br>
+$ <em>./tiltshiftvideo</em><br></p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="trueresultado-8"><a class="anchor" href="#trueresultado-8"></a>Resultado</h4>
+<div class="videoblock">
+<div class="title">Video com tiltshift .</div>
+<div class="content">
+<video src="tiltshift.png" controls>
+Your browser does not support the video tag.
+</video>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -1308,7 +1428,7 @@ $ <em>./tiltshift</em><br></p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2019-04-10 23:35:52
+Last updated 2019-04-10 23:59:41
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">
