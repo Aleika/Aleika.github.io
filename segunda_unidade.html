@@ -472,8 +472,260 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="listingblock">
 <div class="title">Codigo 1 - homomorfico.cpp</div>
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-cpp" data-lang="cpp"></code></pre>
+<pre class="highlightjs highlight"><code class="language-cpp" data-lang="cpp">#include &lt;iostream&gt;
+#include &lt;opencv2/opencv.hpp&gt;
+#include &lt;opencv2/imgproc/imgproc.hpp&gt;
+
+
+using namespace cv;
+using namespace std;
+
+// troca os quadrantes da imagem da DFT
+void deslocaDFT(Mat&amp; image ){
+  Mat tmp, A, B, C, D;
+
+  // se a imagem tiver tamanho impar, recorta a regiao para
+  // evitar cópias de tamanho desigual
+  image = image(Rect(0, 0, image.cols &amp; -2, image.rows &amp; -2));
+  int cx = image.cols/2;
+  int cy = image.rows/2;
+
+  // reorganiza os quadrantes da transformada
+  // A B   -&gt;  D C
+  // C D       B A
+  A = image(Rect(0, 0, cx, cy));
+  B = image(Rect(cx, 0, cx, cy));
+  C = image(Rect(0, cy, cx, cy));
+  D = image(Rect(cx, cy, cx, cy));
+
+  // A &lt;-&gt; D
+  A.copyTo(tmp);  D.copyTo(A);  tmp.copyTo(D);
+
+  // C &lt;-&gt; B
+  C.copyTo(tmp);  B.copyTo(C);  tmp.copyTo(B);
+}
+
+//Declarando as variáveis globais que serão utilizadas
+int yH, yL, c, D0;
+
+int yL_slider = 10;
+int yH_slider = 60;
+int c_slider = 10;
+int D0_slider = 10;
+
+
+const int yL_max = 100; // valor máximo para yL que será exibido no sliderbar
+const int yH_max = 100; // valor máximo para yh que será exibido no sliderbar
+const int c_max = 100; //valor máximo para c que será exibido no sliderbar
+const int D0_max = 100; //valor máximo para D0 que será exibido no sliderbar
+
+Mat image; // matriz que irá armazenar a imagem de entrada
+Mat padded; // matriz ajustada (a partir da matriz image) de acordo com as melhores dimensões para a realização da DFT
+Mat tmp; // Matriz temporária
+Mat exibir; // será usado para exibir o filtro normalizado
+  vector&lt;Mat&gt; planos;
+
+// valores ideais dos tamanhos da imagem
+// para o calculo da DFT
+int dft_M, dft_N;
+
+// Função que contém todos os passos necessários para a aplicação do filtro e que são refeitas a cada mudança em algum dos sliders
+void myFilter(void){
+
+  planos.clear();
+  Mat_&lt;float&gt; realInput, zeros;
+  Mat imaginaryInput, complexImage;
+  Mat filter;
+
+  // parte imaginaria da matriz complexa (preenchida com zeros)
+  zeros = Mat_&lt;float&gt;::zeros(padded.size());
+
+  // cria a compoente real
+  realInput = Mat_&lt;float&gt;(padded);
+
+  // A matriz realInput é preenchida com 1s
+  realInput += Scalar::all(1);
+
+  //Calculado o log da matriz realInput e o resultado é armazena em realInput
+  log(realInput, realInput);
+
+  // insere as duas componentes no array de matrizes
+  planos.push_back(realInput);
+  planos.push_back(zeros);
+
+  // prepara a matriz complexa para ser preenchida
+  complexImage = Mat(padded.size(), CV_32FC2, Scalar(0));
+
+  // combina o array de matrizes em uma unica
+  // componente complexa
+  merge(planos, complexImage);
+
+  // calcula o dft
+  dft(complexImage, complexImage);
+
+  // realiza a troca de quadrantes
+  deslocaDFT(complexImage);
+
+  //Faz a normalização da imagem complexa (complexImage) com valores entre 0 e 1. Armazena o resultado em complexImage
+  normalize(complexImage,complexImage,0,1,CV_MINMAX);
+  // a função de transferência (filtro homomorfico) deve ter o
+  // mesmo tamanho e tipo da matriz complexa
+  filter = complexImage.clone();
+
+  // cria uma matriz temporária para criar as componentes real
+  // e imaginaria do filtro ideal
+  tmp = Mat(dft_M, dft_N, CV_32F);
+
+  // prepara o filtro homomórfico
+  for(int i=0; i&lt;dft_M; i++){
+    for(int j=0; j&lt;dft_N; j++){
+        tmp.at&lt;float&gt; (i,j) = (yH-yL)*(1-exp(-c*(((i-dft_M/2)*(i-dft_M/2)+(j-dft_N/2)*(j-dft_N/2))/(D0*D0)))) + yL;
+      }
+    }
+
+  // cria a matriz com as componentes do filtro e junta
+  // ambas em uma matriz multicanal complexa
+  Mat comps[]= {tmp, tmp};
+
+  //Faz uma normalização para exibir visualmente a forma do filtro
+  normalize(tmp,exibir,0,1,CV_MINMAX);
+  imshow("Filtro Homomórfico", exibir);
+
+
+  merge(comps, 2, filter);
+
+    // aplica o filtro homomorfico
+    mulSpectrums(complexImage,filter,complexImage,0);
+
+    // troca novamente os quadrantes
+    deslocaDFT(complexImage);
+
+    // calcula a DFT inversa
+    idft(complexImage, complexImage);
+
+    // limpa o array de planos
+    planos.clear();
+
+    // separa as partes real e imaginaria da
+    // imagem filtrada
+    split(complexImage, planos);
+
+    // Calcula a exponencial da parte real (função inversa do log)
+    exp(planos[0],planos[0]);
+
+    // normaliza a parte real para exibicao
+    normalize(planos[0], planos[0], 0, 1, CV_MINMAX);
+    imshow("Imagem Filtrada", planos[0]);
+}
+
+void on_trackbar(int, void*){
+  yL = (double) yL_slider/10;
+  yH = (double) yH_slider/10;
+  c = (double) c_slider/10;
+  D0 = (double) D0_slider;
+  myFilter();
+}
+
+int main(int , char**){
+  Mat image = imread("psg.jpg", CV_LOAD_IMAGE_GRAYSCALE);
+  namedWindow("Imagem Filtrada", 1);
+
+  if(!image.data)
+    return -1;
+
+  // Mostra a imagem original
+  imshow("Imagem Original", image);
+
+  // identifica os tamanhos otimos para
+  // calculo do FFT
+  dft_M = getOptimalDFTSize(image.rows);
+  dft_N = getOptimalDFTSize(image.cols);
+
+  // realiza o padding da imagem, isto é, redimensiona a matriz preenchendo as bordas com zero
+  copyMakeBorder(image, padded, 0,
+                 dft_M - image.rows, 0,
+                 dft_N - image.cols,
+                 BORDER_CONSTANT, Scalar::all(0));
+
+
+
+  char TrackbarName[50];
+
+  sprintf( TrackbarName, "yL x %d", yL_max );
+  createTrackbar( TrackbarName, "Imagem Filtrada", &amp;yL_slider, yL_max, on_trackbar);
+
+  sprintf( TrackbarName, "yH x %d", yH_max );
+  createTrackbar( TrackbarName, "Imagem Filtrada", &amp;yH_slider, yH_max, on_trackbar);
+
+  sprintf( TrackbarName, "c x %d", c_max );
+  createTrackbar( TrackbarName, "Imagem Filtrada", &amp;c_slider, c_max, on_trackbar);
+
+  sprintf( TrackbarName, "D0 x %d", D0_max );
+  createTrackbar( TrackbarName, "Imagem Filtrada", &amp;D0_slider, D0_max, on_trackbar);
+
+    on_trackbar(0,0);
+
+    //Espera que qualquer tecla seja pressionada para fechar as janelas que estão sendo exibidas
+    waitKey(0);
+  // Salva imagem original com o nome mgOriginal.jpg
+  imwrite("imgOriginal.jpg", image);
+ // Salva imagem do filtro com o nome filtroHomo.jpg
+  imwrite("filtroHomo.jpg", exibir);
+  // Salva imagem do resultado do filtro com o nome resultFiltro.jpg
+  imwrite("resultFiltro.jpg", planos[0]);
+
+
+  return 0;
+}</code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>Para compilar e executar o código basta utilizar os comandos:</p>
+</div>
+<div class="paragraph">
+<p>$ make homomorfico</p>
+</div>
+<div class="paragraph">
+<p>$ ./homomorfico</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="trueresultados"><a class="anchor" href="#trueresultados"></a>Resultados</h4>
+<div class="imageblock">
+<div class="content">
+<img src="imgOriginal.jpg" alt="imgOriginal.jpg">
+</div>
+<div class="title">Figure 1. Imagem Original</div>
+</div>
+<div class="paragraph">
+<p>A imagem filtrada mostra a melhor configuração obtida para o ajuste de uma imagem com má iluminação. O ajuste consiste em deixar os tons mais próximos entre si.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="imgFiltrada.png" alt="imgFiltrada.png">
+</div>
+<div class="title">Figure 2. Imagem obtida como resultado pela aplicação do filtro</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="filtroHomomorfico.png" alt="filtroHomomorfico.png">
+</div>
+<div class="title">Figure 3. Demonstração da forma do filtro</div>
+</div>
+<div class="paragraph">
+<p>É possível observar pela Figura 3 que o filtro homomórfico obtido pelos ajustes dos parâmetros, que podem ser vistos na Figura 2, atenua totalmente as frequências baixa e vai atenuando parcialmente faixas de frequência mais altas.</p>
+</div>
+<div class="paragraph">
+<p>O efeito da atenuação que matêm frequências de valores mais altos é ajustado pelo parâmetro C, que ajusta o quão forte/inclinada deve ser a passagem entre yL e yH. É o ajuste do parâmetro C que dá a diferença de tonalidade.</p>
+</div>
+<div class="paragraph">
+<p>O parâmetro D0 ajusta o contraste (brilho) da imagem. Este parâmetro é responsável por configurar o diâmetro dos circulos mostrados na Figura 3. Isto significa que, quanto maior for o valor de D0, mais frequências serão totalemente atenuadas (o circulo preto é responsável pela atenuação total das frequências baixas).</p>
+</div>
+<div class="paragraph">
+<p>Para valores de yL baixos têm-se a sensação de que a imagem possui um fundo carregado e conserva-se mais frequências da imagem original.</p>
+</div>
+<div class="paragraph">
+<p>Para valores de yH altos têm-se a sensação de que as bordas estão mais carregadas, isto porque o yH ajusta o quão de frequências altas serão mantidas.</p>
 </div>
 </div>
 </div>
@@ -646,23 +898,26 @@ int main(int argc, char**argv){
 </div>
 <div class="sect3">
 <h4 id="trueresultado"><a class="anchor" href="#trueresultado"></a>Resultado</h4>
+<div class="paragraph">
+<p>Abaixo são mostradas as imagens original (Figura 1), imagem com os valores dos parâmetros (Figura 2) utilizados para obter a imagem de saída (mostrada na Figura 3).</p>
+</div>
 <div class="imageblock">
 <div class="content">
 <img src="psg.jpg" alt="psg.jpg">
 </div>
-<div class="title">Figure 1. Imagem Original</div>
+<div class="title">Figure 4. Imagem Original</div>
 </div>
 <div class="imageblock">
 <div class="content">
 <img src="filtroCanny.png" alt="filtroCanny.png">
 </div>
-<div class="title">Figure 2. Imagem com valor dos parâmetros ajustados no slider</div>
+<div class="title">Figure 5. Imagem com valor dos parâmetros ajustados no slider</div>
 </div>
 <div class="imageblock">
 <div class="content">
 <img src="pontilhismo.jpg" alt="pontilhismo.jpg">
 </div>
-<div class="title">Figure 3. Imagem Obtida</div>
+<div class="title">Figure 6. Imagem Obtida</div>
 </div>
 </div>
 </div>
@@ -670,7 +925,61 @@ int main(int argc, char**argv){
 <h3 id="true9-quantiza-o-vetorial-com-k-means"><a class="anchor" href="#true9-quantiza-o-vetorial-com-k-means"></a>9. Quantização vetorial com k-means</h3>
 <div class="sect3">
 <h4 id="true9-1"><a class="anchor" href="#true9-1"></a>9.1</h4>
+<div class="listingblock">
+<div class="title">Código - kmeans.cpp</div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-cpp" data-lang="cpp">#include &lt;opencv2/opencv.hpp&gt;
+#include &lt;cstdlib&gt;
 
+using namespace cv;
+
+int main( int argc, char** argv ){
+  int nClusters = 6;
+  Mat rotulos;
+  int nRodadas = 1;
+  Mat centros;
+
+  if(argc!=3){
+	exit(0);
+  }
+
+  Mat img = imread( argv[1], CV_LOAD_IMAGE_COLOR);
+
+imshow("imagem", img);
+  Mat samples(img.rows * img.cols, 3, CV_32F);
+
+  for( int y = 0; y &lt; img.rows; y++ ){
+    for( int x = 0; x &lt; img.cols; x++ ){
+      for( int z = 0; z &lt; 3; z++){
+        samples.at&lt;float&gt;(y + x*img.rows, z) = img.at&lt;Vec3b&gt;(y,x)[z];
+	  }
+	}
+  }
+
+  kmeans(samples,
+		 nClusters,
+		 rotulos,
+		 TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 10000, 0.0001),
+		 nRodadas,
+		 KMEANS_RANDOM_CENTERS,
+		 centros );
+
+
+  Mat rotulada( img.size(), img.type() );
+  for( int y = 0; y &lt; img.rows; y++ ){
+    for( int x = 0; x &lt; img.cols; x++ ){
+	  int indice = rotulos.at&lt;int&gt;(y + x*img.rows,0);
+	  rotulada.at&lt;Vec3b&gt;(y,x)[0] = (uchar) centros.at&lt;float&gt;(indice, 0);
+	  rotulada.at&lt;Vec3b&gt;(y,x)[1] = (uchar) centros.at&lt;float&gt;(indice, 1);
+	  rotulada.at&lt;Vec3b&gt;(y,x)[2] = (uchar) centros.at&lt;float&gt;(indice, 2);
+	}
+  }
+  imshow( "clustered image", rotulada );
+  imwrite(argv[2], rotulada);
+  waitKey( 0 );
+}</code></pre>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -678,7 +987,7 @@ int main(int argc, char**argv){
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2019-05-28 22:06:07
+Last updated 2019-05-28 23:01:15
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">
