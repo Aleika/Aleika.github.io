@@ -34,7 +34,7 @@ small{font-size:80%}
 sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}
 sup{top:-.5em}
 sub{bottom:-.25em}
-img{border:0} 
+img{border:0}
 svg:not(:root){overflow:hidden}
 figure{margin:0}
 fieldset{border:1px solid silver;margin:0 2px;padding:.35em .625em .75em}
@@ -749,6 +749,9 @@ Uma variável importante para o desenho das bolhas é a variável STEP, pois ir�
 <div class="paragraph">
 <p>Para níveis de T1 diferentes o desenho das bolhas fica mais preciso, pois as bordas ficam mais precisas e as bolhas são desenhadas de acordo com as bordas resultantes da imagem binária resultante do algoritmo de Canny.</p>
 </div>
+</div>
+<div class="sect3">
+<h4 id="truec-digo-2"><a class="anchor" href="#truec-digo-2"></a>Código</h4>
 <div class="listingblock">
 <div class="title">Código 2 - cannypoints.cpp</div>
 <div class="content">
@@ -899,7 +902,7 @@ int main(int argc, char**argv){
 <div class="sect3">
 <h4 id="trueresultado"><a class="anchor" href="#trueresultado"></a>Resultado</h4>
 <div class="paragraph">
-<p>Abaixo são mostradas as imagens original (Figura 4), imagem com os valores dos parâmetros (Figura 5) utilizados para obter a imagem de saída (mostrada na Figura 6).</p>
+<p>Abaixo são mostradas as imagens original (Figura 1), imagem com os valores dos parâmetros (Figura 2) utilizados para obter a imagem de saída (mostrada na Figura 3).</p>
 </div>
 <div class="imageblock">
 <div class="content">
@@ -925,13 +928,28 @@ int main(int argc, char**argv){
 <h3 id="true9-quantiza-o-vetorial-com-k-means"><a class="anchor" href="#true9-quantiza-o-vetorial-com-k-means"></a>9. Quantização vetorial com k-means</h3>
 <div class="sect3">
 <h4 id="true9-1"><a class="anchor" href="#true9-1"></a>9.1</h4>
+<div class="paragraph">
+<p>K-means é um dos algoritmos de quantização mais
+populares encontrados na literatura. As técnicas de quantização são utilizadas para mapear os dados presentes em um conjunto e são normalmente utilizadas para fins de compressão de dados.</p>
+</div>
+<div class="paragraph">
+<p>O algoritmo k-means particiona o espaço N-dimensional em diferentes células, de modo que cada célula é determinada por um centro. O conjunto de pontos que são mais próximos de um dados centro (quando comparado com a distância aos outros centros) definem a célula.</p>
+</div>
+<div class="paragraph">
+<p>A prática desenvolvida nesta seção busca explorar o fato de que o algoritmo k-means obtém um resultado diferente a cada execução. Isso se deve ao fato de que os centróides que definem as células possuem seu local inicial determinado de modo aleatório, isso faz com que a cada execução se tenha a localização dos centróides finais diferentes, e dessa forma, tenha-se a classificação diferente dos elementos (pontos).</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="truec-digo-3"><a class="anchor" href="#truec-digo-3"></a>Código</h4>
 <div class="listingblock">
-<div class="title">Código - kmeans.cpp</div>
+<div class="title">Código3 - kmeans.cpp</div>
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-cpp" data-lang="cpp">#include &lt;opencv2/opencv.hpp&gt;
 #include &lt;cstdlib&gt;
+#include &lt;string&gt;
 
 using namespace cv;
+using namespace std;
 
 int main( int argc, char** argv ){
   int nClusters = 6;
@@ -940,45 +958,71 @@ int main( int argc, char** argv ){
   Mat centros;
 
   if(argc!=3){
-	exit(0);
+exit(0);
   }
 
   Mat img = imread( argv[1], CV_LOAD_IMAGE_COLOR);
 
-imshow("imagem", img);
-  Mat samples(img.rows * img.cols, 3, CV_32F);
+  for(int k=0; k&lt;10; k++){
+//  imshow("imagem", img);
+Mat samples(img.rows * img.cols, 3, CV_32F);
 
-  for( int y = 0; y &lt; img.rows; y++ ){
-    for( int x = 0; x &lt; img.cols; x++ ){
-      for( int z = 0; z &lt; 3; z++){
-        samples.at&lt;float&gt;(y + x*img.rows, z) = img.at&lt;Vec3b&gt;(y,x)[z];
-	  }
-	}
+for( int y = 0; y &lt; img.rows; y++ ){
+ for( int x = 0; x &lt; img.cols; x++ ){
+for( int z = 0; z &lt; 3; z++){
+ samples.at&lt;float&gt;(y + x*img.rows, z) = img.at&lt;Vec3b&gt;(y,x)[z];
+}
+ }
+}
+
+kmeans(samples,
+  nClusters,
+  rotulos,
+  TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 10000, 0.0001),
+  nRodadas,
+  KMEANS_RANDOM_CENTERS,
+  centros );
+
+
+Mat rotulada( img.size(), img.type() );
+for( int y = 0; y &lt; img.rows; y++ ){
+ for( int x = 0; x &lt; img.cols; x++ ){
+int indice = rotulos.at&lt;int&gt;(y + x*img.rows,0);
+rotulada.at&lt;Vec3b&gt;(y,x)[0] = (uchar) centros.at&lt;float&gt;(indice, 0);
+rotulada.at&lt;Vec3b&gt;(y,x)[1] = (uchar) centros.at&lt;float&gt;(indice, 1);
+rotulada.at&lt;Vec3b&gt;(y,x)[2] = (uchar) centros.at&lt;float&gt;(indice, 2);
+ }
+}
+string s;
+s=argv[2]+to_string(k)+".jpg";
+imwrite(s.c_str(), rotulada);
   }
-
-  kmeans(samples,
-		 nClusters,
-		 rotulos,
-		 TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 10000, 0.0001),
-		 nRodadas,
-		 KMEANS_RANDOM_CENTERS,
-		 centros );
-
-
-  Mat rotulada( img.size(), img.type() );
-  for( int y = 0; y &lt; img.rows; y++ ){
-    for( int x = 0; x &lt; img.cols; x++ ){
-	  int indice = rotulos.at&lt;int&gt;(y + x*img.rows,0);
-	  rotulada.at&lt;Vec3b&gt;(y,x)[0] = (uchar) centros.at&lt;float&gt;(indice, 0);
-	  rotulada.at&lt;Vec3b&gt;(y,x)[1] = (uchar) centros.at&lt;float&gt;(indice, 1);
-	  rotulada.at&lt;Vec3b&gt;(y,x)[2] = (uchar) centros.at&lt;float&gt;(indice, 2);
-	}
-  }
-  imshow( "clustered image", rotulada );
-  imwrite(argv[2], rotulada);
   waitKey( 0 );
 }</code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>Para compilar e executar o código basta utilizar os comandos:</p>
+</div>
+<div class="paragraph">
+<p>$ make kmeans</p>
+</div>
+<div class="paragraph">
+<p>$./kmeans ultimo.jpg rotulada</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="trueresultado-2"><a class="anchor" href="#trueresultado-2"></a>Resultado</h4>
+<div class="paragraph">
+<div class="title">Imagem Original</div>
+<p><span class="image"><img src="imgoriginal.jpg" alt="imgoriginal.jpg"></span></p>
+</div>
+<div class="paragraph">
+<p>O gif abaixo, mostrado como o resultado, mostra 10 imagens diferentes, obtidas de 10 rodadas diferentes do algoritmo de k-means. Perceba a diferença gerada pelo deslocamento do centróide a cada execução.</p>
+</div>
+<div class="paragraph">
+<div class="title">Gif para comparação das imagens geradas</div>
+<p>video:comparacaoImg.gif[]</p>
 </div>
 </div>
 </div>
@@ -987,7 +1031,7 @@ imshow("imagem", img);
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2019-05-28 23:01:15
+Last updated 2019-06-06 23:46:19
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">
